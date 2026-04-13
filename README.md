@@ -1,99 +1,144 @@
-# Voice Converter (SplitAndConvert.ps1)
+# Voice Converter Tool (SplitAndConvert.ps1)
 
-Split any audio or video file into two equal halves and convert the audio to MP3 using FFmpeg.
+ده سكربت PowerShell تفاعلي (Menu) لتحويل وتقسيم ملفات الصوت/الفيديو باستخدام FFmpeg، وكمان يقدر يطلع نص مكتوب من الصوت باستخدام MarkItDown.
 
-## Features
+## السكربت بيعمل إيه؟
 
-- Splits input at the exact midpoint
-- Converts both halves to MP3
-- Works with audio and video files (audio stream only)
-- Writes output next to the original file
-- Overwrites existing output files
+- تحويل أي ملف فيه صوت إلى MP3
+- تقسيم الملف لنصين + حفظهم MP3
+- تقسيم الملف لعدد أجزاء تختاره + حفظ كل جزء MP3
+- استخراج الصوت بدون إعادة ترميز (copy codec)
+- تحويل الصوت لنص Markdown باستخدام MarkItDown
+- كل الملفات الناتجة بتتخزن في فولدر ثابت: `C:\Users\DELL\Music`
 
-## Requirements
+## المتطلبات
 
-- FFmpeg (includes FFprobe) available in PATH
-- Windows PowerShell or PowerShell Core
+- Windows PowerShell أو PowerShell Core
+- FFmpeg + FFprobe متضافين في PATH
+- Python + pip في PATH (مطلوبين لو هتستخدم تحويل الصوت لنص)
 
-## Quick Start
+## التشغيل
 
-```powershell
-.\SplitAndConvert.ps1 -FilePath "C:\path\to\your\file"
-```
-
-## Usage
+شغّل السكربت:
 
 ```powershell
-.\SplitAndConvert.ps1 -FilePath "C:\Users\DELL\Music\podcast.mp3"
-.\SplitAndConvert.ps1 -FilePath "C:\Users\DELL\Videos\lecture.mkv"
-.\SplitAndConvert.ps1 -FilePath "C:\Users\DELL\Music\recording.wav"
+.\SplitAndConvert.ps1
 ```
 
-## Parameters
+بعد التشغيل هتظهر القائمة، اختار رقم من 1 لـ 6.
 
-| Parameter   | Required | Description                                |
-| ----------- | -------- | ------------------------------------------ |
-| -FilePath   | Yes      | Full path to the audio or video file       |
+## خيارات القائمة
 
-## Output
+| الاختيار | الوظيفة                               | الوصف                                                       |
+| -------- | ------------------------------------- | ----------------------------------------------------------- |
+| 1        | Convert to MP3                        | بيحوّل الملف إلى MP3 بجودة عالية (`-q:a 2`)                 |
+| 2        | Split in half + MP3                   | بيقسم الملف لنصين متساويين ويحفظهم MP3                      |
+| 3        | Split into multiple parts + MP3       | بيطلب منك عدد الأجزاء (لازم 2 أو أكتر) ويحفظ كل جزء MP3     |
+| 4        | Extract audio (no re-encode)          | بيستخرج الصوت كما هو بدون re-encode باستخدام `-acodec copy` |
+| 5        | Transcribe audio to text (MarkItDown) | بيحوّل الصوت إلى ملف نصي Markdown                           |
+| 6        | Exit                                  | خروج من البرنامج                                            |
 
-Two MP3 files are created in the same directory as the input file.
+## مكان الإخراج
 
-| Input File    | Output Files                              |
-| ------------- | ----------------------------------------- |
-| podcast.mp3   | podcast_Part1.mp3 + podcast_Part2.mp3     |
-| lecture.mkv   | lecture_Part1.mp3 + lecture_Part2.mp3     |
+- السكربت بيحفظ كل النواتج في:
 
-## Notes
+```text
+C:\Users\DELL\Music
+```
 
-- Uses `-y` to overwrite existing output files
-- High MP3 quality uses `-q:a 2`
-- Extracts audio only with `-map a`
-- Original file remains unchanged
+- لو الفولدر مش موجود، السكربت بيعمله تلقائي.
 
-## Console Output
+## تفاصيل مهمة حسب كل وظيفة
 
-Progress messages are shown in Arabic:
+### 1) Convert to MP3
 
-| Message             | Meaning                          |
-| ------------------- | -------------------------------- |
-| جاري تقسيم الملف    | Splitting file in progress       |
-| نقطة المنتصف عند    | Midpoint at (seconds)            |
-| تمت العملية بنجاح   | Operation completed successfully |
-| خطأ: الملف مش موجود | Error: File not found            |
+- بياخد مسار ملف الإدخال منك
+- بيطلع ملف باسم نفس اسم الملف الأصلي لكن بامتداد `.mp3`
 
-## Troubleshooting
+### 2) Split in half + MP3
 
-**"ffmpeg is not recognized"**
+- بيحسب مدة الملف بـ `ffprobe`
+- بيقسم عند نقطة النص بالثواني
+- بيطلع:
+  - `FileName_Part1.mp3`
+  - `FileName_Part2.mp3`
 
-- Install FFmpeg from https://ffmpeg.org/download.html
-- Add FFmpeg to your system PATH
+### 3) Split into multiple parts + MP3
 
-**"الملف مش موجود" (File not found)**
+- بيطلب منك عدد الأجزاء
+- لو الرقم أقل من 2 هيظهر خطأ
+- كل جزء بيتسمى بالشكل:
+  - `FileName_Part1.mp3`
+  - `FileName_Part2.mp3`
+  - ...
 
-- Check the file path
-- Use quotes around paths with spaces
+### 4) Extract audio (no re-encode)
 
----
+- بيكتشف codec الصوت من الملف الأصلي
+- بيختار امتداد الإخراج تلقائيًا حسب الـcodec:
 
-## FFmpeg Quick Commands
+| codec   | extension |
+| ------- | --------- |
+| aac     | m4a       |
+| mp3     | mp3       |
+| opus    | opus      |
+| vorbis  | ogg       |
+| flac    | flac      |
+| غير كده | mka       |
 
-### Extract Audio from Video (MP3)
+- بعد الاستخراج، بيسألك لو عايز تعمل transcription مباشرة
+
+### 5) Transcribe audio to text (MarkItDown)
+
+- لو `markitdown` مش متسطب، السكربت بيسألك يسطبه تلقائيًا:
 
 ```powershell
-ffmpeg -i "input_video" -vn -acodec libmp3lame -q:a 2 "output.mp3"
+python -m pip install "markitdown[audio-transcription]"
 ```
 
-### MP3 Quality Settings
+- الناتج بيكون ملف Markdown باسم:
+  - `FileName_transcript.md`
 
-| -q:a Value | Bitrate (approx.) | Quality |
-| ---------- | ----------------- | ------- |
-| 0          | ~245 kbps         | Best    |
-| 2          | ~190 kbps         | High    |
-| 4          | ~165 kbps         | Good    |
-| 6          | ~130 kbps         | Medium  |
-| 9          | ~65 kbps          | Low     |
+## الملاحظات التقنية
 
-## Author
+- السكربت بيستخدم `-y` في FFmpeg علشان يعمل overwrite للملفات القديمة بدون تأكيد
+- في التحويل/التقسيم بيستخدم `-map a` (صوت فقط)
+- الملف الأصلي لا يتم تعديله
 
-Created for easy audio splitting and conversion tasks.
+## حل المشاكل
+
+### `ffmpeg is not recognized`
+
+- نزّل FFmpeg من:
+  - https://ffmpeg.org/download.html
+- ضيف مسار FFmpeg في PATH
+
+### `markitdown is not installed`
+
+- اتأكد إن Python وpip شغالين من التيرمنال
+- نفّذ:
+
+```powershell
+python -m pip install "markitdown[audio-transcription]"
+```
+
+### `Error: file not found.`
+
+- اتأكد إن المسار صحيح
+- ممكن تحط المسار بين quotes لو فيه مسافات
+
+### `Invalid choice. Pick 1-6.`
+
+- لازم تدخل رقم من 1 إلى 6
+
+### `Error: parts must be 2 or more.`
+
+- في خيار التقسيم المتعدد لازم عدد الأجزاء يكون 2 أو أكتر
+
+## مثال استخدام سريع
+
+1. شغّل السكربت
+2. اختار `2` للتقسيم نصين
+3. اكتب مسار الملف
+4. استنى لحد ما تظهر رسالة `Done.`
+5. هتلاقي النواتج في `C:\Users\DELL\Music`
