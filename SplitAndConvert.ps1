@@ -24,7 +24,8 @@ function Show-Menu {
     Write-Host "  [2] Split in half + MP3" -ForegroundColor Green
     Write-Host "  [3] Split into multiple parts + MP3" -ForegroundColor Green
     Write-Host "  [4] Extract audio (no re-encode)" -ForegroundColor Green
-    Write-Host "  [5] Exit" -ForegroundColor Red
+    Write-Host "  [5] Transcribe audio to text (MarkItDown)" -ForegroundColor Green
+    Write-Host "  [6] Exit" -ForegroundColor Red
     Write-Host ""
 }
 
@@ -175,8 +176,61 @@ function Extract-Audio {
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  Done." -ForegroundColor Green
         Write-Host "  Output: $output" -ForegroundColor Yellow
+
+        Write-Host ""
+        $transcribe = Read-Host "  Transcribe audio to text with MarkItDown? [y/n]"
+        if ($transcribe -eq "y") {
+            Transcribe-WithMarkItDown -AudioPath $output
+        }
     } else {
         Write-Host "  Error during extraction." -ForegroundColor Red
+    }
+}
+
+# ------------------------------------------
+# 5. Transcribe audio to text via MarkItDown
+# ------------------------------------------
+function Transcribe-WithMarkItDown {
+    param([string]$AudioPath = "")
+
+    if (-not $AudioPath) {
+        $AudioPath = Get-FilePath
+        if (-not $AudioPath) { return }
+    }
+
+    # Check if markitdown CLI is available
+    $markitdownAvailable = Get-Command markitdown -ErrorAction SilentlyContinue
+    if (-not $markitdownAvailable) {
+        Write-Host ""
+        Write-Host "  markitdown is not installed." -ForegroundColor Yellow
+        $install = Read-Host "  Install markitdown[audio-transcription] now? [y/n]"
+        if ($install -eq "y") {
+            Write-Host "  Installing..." -ForegroundColor Cyan
+            python -m pip install "markitdown[audio-transcription]"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  Installation failed. Make sure Python/pip is in PATH." -ForegroundColor Red
+                return
+            }
+        } else {
+            return
+        }
+    }
+
+    $fileName = [System.IO.Path]::GetFileNameWithoutExtension($AudioPath)
+    $output   = Join-Path $OutputDir "$($fileName)_transcript.md"
+
+    Write-Host ""
+    Write-Host "  Transcribing audio with MarkItDown..." -ForegroundColor Cyan
+    Write-Host "  (This may take a moment depending on file length)" -ForegroundColor DarkGray
+
+    markitdown $AudioPath -o $output 2>$null
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Done." -ForegroundColor Green
+        Write-Host "  Transcript saved to: $output" -ForegroundColor Yellow
+    } else {
+        Write-Host "  Error during transcription." -ForegroundColor Red
+        Write-Host "  Tip: Run  pip install 'markitdown[audio-transcription]'  and ensure Python is in PATH." -ForegroundColor DarkYellow
     }
 }
 
@@ -195,14 +249,15 @@ while ($true) {
         "2" { Split-InHalf }
         "3" { Split-IntoParts }
         "4" { Extract-Audio }
-        "5" {
+        "5" { Transcribe-WithMarkItDown }
+        "6" {
             Write-Host ""
             Write-Host "  Goodbye." -ForegroundColor Cyan
             Write-Host ""
             return
         }
         default {
-            Write-Host "  Invalid choice. Pick 1-5." -ForegroundColor Red
+            Write-Host "  Invalid choice. Pick 1-6." -ForegroundColor Red
         }
     }
 
