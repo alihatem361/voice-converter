@@ -9,6 +9,7 @@
 - تقسيم الملف لعدد أجزاء تختاره + حفظ كل جزء MP3
 - استخراج الصوت بدون إعادة ترميز (copy codec)
 - تحويل الصوت لنص Markdown باستخدام MarkItDown
+- ضغط الفيديو لإخراج نسخة أخف بجودة كويسة (H.264)
 - كل الملفات الناتجة بتتخزن في فولدر ثابت: `C:\Users\DELL\Music`
 
 ## المتطلبات
@@ -25,7 +26,7 @@
 .\SplitAndConvert.ps1
 ```
 
-بعد التشغيل هتظهر القائمة، اختار رقم من 1 لـ 6.
+بعد التشغيل هتظهر القائمة، اختار رقم من 1 لـ 7.
 
 ## خيارات القائمة
 
@@ -36,7 +37,8 @@
 | 3        | Split into multiple parts + MP3       | بيطلب منك عدد الأجزاء (لازم 2 أو أكتر) ويحفظ كل جزء MP3     |
 | 4        | Extract audio (no re-encode)          | بيستخرج الصوت كما هو بدون re-encode باستخدام `-acodec copy` |
 | 5        | Transcribe audio to text (MarkItDown) | بيحوّل الصوت إلى ملف نصي Markdown                           |
-| 6        | Exit                                  | خروج من البرنامج                                            |
+| 6        | Compress Video (Fast H.264)           | بيضغط الفيديو باستخدام H.264 بجودة كويسة وحجم أقل           |
+| 7        | Exit                                  | خروج من البرنامج                                            |
 
 ## مكان الإخراج
 
@@ -99,6 +101,13 @@ python -m pip install "markitdown[audio-transcription]"
 - الناتج بيكون ملف Markdown باسم:
   - `FileName_transcript.md`
 
+### 6) Compress Video (Fast H.264)
+
+- بيضغط الفيديو باستخدام `libx264` بقيمة `crf 23` و`preset veryfast`
+- الصوت بيتحوّل لـ AAC بمعدل `128k`
+- الناتج بيكون ملف باسم:
+  - `FileName_compressed.mp4`
+
 ## الملاحظات التقنية
 
 - السكربت بيستخدم `-y` في FFmpeg علشان يعمل overwrite للملفات القديمة بدون تأكيد
@@ -127,9 +136,9 @@ python -m pip install "markitdown[audio-transcription]"
 - اتأكد إن المسار صحيح
 - ممكن تحط المسار بين quotes لو فيه مسافات
 
-### `Invalid choice. Pick 1-6.`
+### `Invalid choice. Pick 1-7.`
 
-- لازم تدخل رقم من 1 إلى 6
+- لازم تدخل رقم من 1 إلى 7
 
 ### `Error: parts must be 2 or more.`
 

@@ -25,7 +25,8 @@ function Show-Menu {
     Write-Host "  [3] Split into multiple parts + MP3" -ForegroundColor Green
     Write-Host "  [4] Extract audio (no re-encode)" -ForegroundColor Green
     Write-Host "  [5] Transcribe audio to text (MarkItDown)" -ForegroundColor Green
-    Write-Host "  [6] Exit" -ForegroundColor Red
+    Write-Host "  [6] Compress Video (Fast H.264)" -ForegroundColor Green
+    Write-Host "  [7] Exit" -ForegroundColor Red
     Write-Host ""
 }
 
@@ -234,6 +235,29 @@ function Transcribe-WithMarkItDown {
     }
 }
 
+# ------------------------------------------
+# 6. Compress video
+# ------------------------------------------
+function Compress-Video {
+    $filePath = Get-FilePath
+    if (-not $filePath) { return }
+
+    $fileName = [System.IO.Path]::GetFileNameWithoutExtension($filePath)
+    $output = Join-Path $OutputDir "$($fileName)_compressed.mp4"
+
+    Write-Host ""
+    Write-Host "  Compressing video... This might take a few minutes depending on the video length." -ForegroundColor Cyan
+
+    ffmpeg -i $filePath -c:v libx264 -crf 23 -preset veryfast -c:a aac -b:a 128k $output -y
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Done." -ForegroundColor Green
+        Write-Host "  Output: $output" -ForegroundColor Yellow
+    } else {
+        Write-Host "  Error during compression." -ForegroundColor Red
+    }
+}
+
 # ==========================================
 #   Main Loop
 # ==========================================
@@ -250,14 +274,15 @@ while ($true) {
         "3" { Split-IntoParts }
         "4" { Extract-Audio }
         "5" { Transcribe-WithMarkItDown }
-        "6" {
+        "6" { Compress-Video }
+        "7" {
             Write-Host ""
             Write-Host "  Goodbye." -ForegroundColor Cyan
             Write-Host ""
             return
         }
         default {
-            Write-Host "  Invalid choice. Pick 1-6." -ForegroundColor Red
+            Write-Host "  Invalid choice. Pick 1-7." -ForegroundColor Red
         }
     }
 
