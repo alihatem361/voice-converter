@@ -26,7 +26,9 @@ function Show-Menu {
     Write-Host "  [4] Extract audio (no re-encode)" -ForegroundColor Green
     Write-Host "  [5] Transcribe audio to text (MarkItDown)" -ForegroundColor Green
     Write-Host "  [6] Compress Video (Fast H.264)" -ForegroundColor Green
-    Write-Host "  [7] Exit" -ForegroundColor Red
+    Write-Host "  [7] Change Video/Audio Speed" -ForegroundColor Green
+    Write-Host "  [8] Remove Noise + Compress" -ForegroundColor Green
+    Write-Host "  [9] Exit" -ForegroundColor Red
     Write-Host ""
 }
 
@@ -258,6 +260,127 @@ function Compress-Video {
     }
 }
 
+# ------------------------------------------
+# 7. Change video/audio speed
+# ------------------------------------------
+function Change-VideoSpeed {
+    $filePath = Get-FilePath
+    if (-not $filePath) { return }
+
+    Write-Host ""
+    $speedInput = Read-Host "  Enter speed multiplier (0.5 - 100) e.g. 1.25, 1.5, 0.5"
+    $speedInput = $speedInput.Trim()
+
+    # Handle locale: users may enter 1,5 instead of 1.5
+    $speedInput = $speedInput -replace ",", "."
+
+    $speed = 0.0
+    if (-not [double]::TryParse(
+        $speedInput,
+        [System.Globalization.NumberStyles]::Float,
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [ref]$speed
+    )) {
+        Write-Host "  Error: invalid speed value." -ForegroundColor Red
+        return
+    }
+
+    if ($speed -lt 0.5 -or $speed -gt 100) {
+        Write-Host "  Error: speed must be between 0.5 and 100." -ForegroundColor Red
+        return
+    }
+
+    $fileName = [System.IO.Path]::GetFileNameWithoutExtension($filePath)
+    $speedLabel = $speed.ToString("0.###", [System.Globalization.CultureInfo]::InvariantCulture)
+    $output = Join-Path $OutputDir "$($fileName)_speed$($speedLabel).mp4"
+
+    # Build atempo chain (each atempo supports 0.5..2.0)
+    $remaining = $speed
+    $atempoParts = @()
+    while ($remaining -gt 2.0) {
+        $atempoParts += "atempo=2.0"
+        $remaining = $remaining / 2.0
+    }
+    $remainingLabel = $remaining.ToString("0.########", [System.Globalization.CultureInfo]::InvariantCulture)
+    $atempoParts += "atempo=$remainingLabel"
+    $atempoFilter = ($atempoParts -join ",")
+
+    $speedFilterLabel = $speed.ToString("0.########", [System.Globalization.CultureInfo]::InvariantCulture)
+    $filterComplex = "[0:v]setpts=PTS/$speedFilterLabel[v];[0:a]$atempoFilter[a]"
+
+    Write-Host ""
+    Write-Host "  Changing speed to x$speedLabel..." -ForegroundColor Cyan
+
+    ffmpeg -i $filePath -filter_complex $filterComplex -map "[v]" -map "[a]" -c:v libx264 -crf 23 -preset veryfast -c:a aac -b:a 128k $output -y
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Done." -ForegroundColor Green
+        Write-Host "  Output: $output" -ForegroundColor Yellow
+    } else {
+        Write-Host "  Error changing speed." -ForegroundColor Red
+    }
+}
+
+# ------------------------------------------
+# 8. Remove noise + compress
+# ------------------------------------------
+function Remove-NoiseAndCompress {
+    $filePath = Get-FilePath
+    if (-not $filePath) { return }
+
+    $fileName = [System.IO.Path]::GetFileNameWithoutExtension($filePath)
+
+    # Detect a real video stream (cover art shows up as a fake one)
+    $videoCodec = (ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 $filePath)
+    $hasVideo = $videoCodec -and ($videoCodec -notin @("png", "mjpeg", "bmp", "gif", "webp"))
+
+    Write-Host ""
+    Write-Host "  Noise removal level:" -ForegroundColor Yellow
+    Write-Host "  [1] Light" -ForegroundColor Green
+    Write-Host "  [2] Medium (default)" -ForegroundColor Green
+    Write-Host "  [3] Strong" -ForegroundColor Green
+    Write-Host ""
+    $level = (Read-Host "  Your choice").Trim()
+    if (-not $level) { $level = "2" }
+
+    $filter = switch ($level) {
+        "1" { "highpass=f=80,afftdn=nr=6:nf=-30:tn=1" }
+        "2" { "highpass=f=80,afftdn=nr=12:nf=-25:tn=1" }
+        "3" { "highpass=f=90,afftdn=nr=24:nf=-20:tn=1,anlmdn=s=0.0002" }
+        default { $null }
+    }
+
+    if (-not $filter) {
+        Write-Host "  Error: invalid level. Pick 1-3." -ForegroundColor Red
+        return
+    }
+
+    Write-Host ""
+
+    if ($hasVideo) {
+        $output = Join-Path $OutputDir "$($fileName)_clean.mp4"
+        Write-Host "  Cleaning audio and compressing video... This might take a few minutes." -ForegroundColor Cyan
+        ffmpeg -i $filePath -af $filter -c:v libx264 -crf 26 -preset veryfast -c:a aac -b:a 96k $output -y
+    } else {
+        $output = Join-Path $OutputDir "$($fileName)_clean.opus"
+        Write-Host "  Cleaning audio and compressing..." -ForegroundColor Cyan
+        ffmpeg -i $filePath -vn -af $filter -ac 1 -ar 16000 -c:a libopus -b:a 32k -vbr on -application voip $output -y 2>$null
+    }
+
+    if ($LASTEXITCODE -eq 0) {
+        $before = (Get-Item $filePath).Length / 1MB
+        $after  = (Get-Item $output).Length / 1MB
+        $saved  = 0
+        if ($before -gt 0) { $saved = (1 - ($after / $before)) * 100 }
+
+        Write-Host "  Done." -ForegroundColor Green
+        Write-Host "  Output: $output" -ForegroundColor Yellow
+        Write-Host "  Size: $($before.ToString('0.##')) MB -> $($after.ToString('0.##')) MB (saved $($saved.ToString('0.#'))%)" -ForegroundColor Yellow
+    } else {
+        Write-Host "  Error during noise removal." -ForegroundColor Red
+    }
+}
+
 # ==========================================
 #   Main Loop
 # ==========================================
@@ -275,14 +398,16 @@ while ($true) {
         "4" { Extract-Audio }
         "5" { Transcribe-WithMarkItDown }
         "6" { Compress-Video }
-        "7" {
+        "7" { Change-VideoSpeed }
+        "8" { Remove-NoiseAndCompress }
+        "9" {
             Write-Host ""
             Write-Host "  Goodbye." -ForegroundColor Cyan
             Write-Host ""
             return
         }
         default {
-            Write-Host "  Invalid choice. Pick 1-7." -ForegroundColor Red
+            Write-Host "  Invalid choice. Pick 1-9." -ForegroundColor Red
         }
     }
 
